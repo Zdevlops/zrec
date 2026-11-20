@@ -108,6 +108,21 @@ class ScreenRecorder(
         }
     }
 
+    /**
+     * Screenshot from the live session. Android 14 allows only one
+     * createVirtualDisplay() per MediaProjection, so the frame is taken from the
+     * running display instead of opening a second capture session.
+     */
+    fun grabFrame(ctx: Context, done: (String?, String?) -> Unit) {
+        val d = display
+        val enc = inputSurface
+        if (d == null || enc == null) {
+            done(null, "not capturing")
+            return
+        }
+        Shot.captureFromDisplay(ctx, d, enc, cfg.width, cfg.height, done)
+    }
+
     fun stop() {
         if (stopping) return
         stopping = true

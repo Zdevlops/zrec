@@ -208,14 +208,23 @@ class RecorderService : Service(), SensorEventListener {
             return
         }
         projection = proj
+        // Android 14 refuses createVirtualDisplay() until a callback is registered.
+        proj.registerCallback(object : MediaProjection.Callback() {
+            override fun onStop() {
+                // Nothing to unwind here: Shot releases its own display.
+            }
+        }, main)
         Shot.capture(
             this, proj,
             intent.getIntExtra(EXTRA_W, 1080),
             intent.getIntExtra(EXTRA_H, 1920),
             intent.getIntExtra(EXTRA_DPI, 420)
-        ) { name ->
+        ) { name, reason ->
             main.post {
-                toast(if (name != null) "Screenshot saved" else "Screenshot failed")
+                toast(
+                    if (name != null) "Screenshot saved"
+                    else "Screenshot failed: ${reason ?: "unknown"}"
+                )
                 runCatching { proj.stop() }
                 projection = null
                 runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
@@ -225,14 +234,17 @@ class RecorderService : Service(), SensorEventListener {
     }
 
     private fun screenshot() {
-        val proj = projection ?: run {
+        val rec = recorder
+        if (rec == null) {
             toast("Not recording yet")
             return
         }
-        val c = cfg ?: return
-        Shot.capture(this, proj, c.width, c.height, c.dpi) { name ->
+        rec.grabFrame(this) { name, reason ->
             main.post {
-                toast(if (name != null) "Screenshot saved" else "Screenshot failed")
+                toast(
+                    if (name != null) "Screenshot saved"
+                    else "Screenshot failed: ${reason ?: "unknown"}"
+                )
             }
         }
     }
