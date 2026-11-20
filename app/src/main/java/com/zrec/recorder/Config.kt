@@ -60,4 +60,9 @@ class Prefs(ctx: Context) {
     var shake: Boolean
         get() = sp.getBoolean("shake", true)
         set(v) = sp.edit().putBoolean("shake", v).apply()
+
+    /** Build number we asked the installer for; 0 means nothing pending. */
+    var pendingUpdateCode: Long
+        get() = sp.getLong("pendingUpdateCode", 0L)
+        set(v) = sp.edit().putLong("pendingUpdateCode", v).apply()
 }

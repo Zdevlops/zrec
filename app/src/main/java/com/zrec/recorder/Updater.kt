@@ -59,7 +59,7 @@ object Updater {
             main.post {
                 if (ok) {
                     onState(null)
-                    launchInstaller(app)
+                    launchInstaller(app, release.code)
                 } else {
                     onState(R.string.update_failed)
                 }
@@ -127,7 +127,10 @@ object Updater {
         return out.length() > 0
     }
 
-    private fun launchInstaller(context: Context) {
+    private fun launchInstaller(context: Context, code: Long) {
+        // Remember what was asked for. The installer reports nothing back, so this
+        // is the only way to tell afterwards that the new build really landed.
+        Prefs(context).pendingUpdateCode = code
         val uri = Uri.parse("content://${context.packageName}.apk/$APK_NAME")
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")

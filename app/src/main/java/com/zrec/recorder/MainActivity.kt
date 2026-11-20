@@ -3,6 +3,10 @@ package com.zrec.recorder
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionConfig
@@ -15,6 +19,8 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.View
 import android.widget.CompoundButton
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
@@ -28,6 +34,8 @@ class MainActivity : Activity() {
         const val EXTRA_SHOT = "shot"
         private const val REQ_PROJ = 1001
         private const val REQ_PERM = 1002
+        private const val CHANNEL_UPDATE = "zrec-update"
+        private const val NOTIF_UPDATE = 41
     }
 
     private lateinit var prefs: Prefs
@@ -47,9 +55,18 @@ class MainActivity : Activity() {
     private lateinit var swHide: Switch
     private lateinit var swShake: Switch
     private lateinit var swCount: Switch
-    private lateinit var rowUpdate: View
-    private lateinit var tvUpdate: TextView
     private lateinit var btnUpdate: TextView
+    private lateinit var tvUpdateState: TextView
+    private lateinit var tvVersionValue: TextView
+    private lateinit var tvBuildValue: TextView
+    private lateinit var dotUpdate: View
+
+    // Four tabs: one job per screen, so the record page is nothing but record.
+    private lateinit var pages: List<View>
+    private lateinit var tabs: List<LinearLayout>
+    private lateinit var tabIcons: List<ImageView>
+    private lateinit var tabLabels: List<TextView>
+    private var tabIndex = 0
 
     private var pendingUpdate: Updater.Release? = null
     private var awaitingInstallPermission = false
@@ -97,17 +114,27 @@ class MainActivity : Activity() {
         swHide = findViewById(R.id.swHide)
         swShake = findViewById(R.id.swShake)
         swCount = findViewById(R.id.swCount)
-        rowUpdate = findViewById(R.id.rowUpdate)
-        tvUpdate = findViewById(R.id.tvUpdate)
         btnUpdate = findViewById(R.id.btnUpdate)
+        tvUpdateState = findViewById(R.id.tvUpdateState)
+        tvVersionValue = findViewById(R.id.tvVersionValue)
+        tvBuildValue = findViewById(R.id.tvBuildValue)
+        dotUpdate = findViewById(R.id.dotUpdate)
 
-        tvVersion.text = runCatching {
-            packageManager.getPackageInfo(packageName, 0).versionName
-        }.getOrNull() ?: ""
+        bindTabs()
+
+        val info = runCatching { packageManager.getPackageInfo(packageName, 0) }.getOrNull()
+        val versionName = info?.versionName.orEmpty()
+        val build = when {
+            info == null -> 0L
+            Build.VERSION.SDK_INT >= 28 -> info.longVersionCode
+            else -> info.versionCode.toLong()
+        }
+        tvVersion.text = versionName
+        tvVersionValue.text = versionName
+        tvBuildValue.text = build.toString()
 
         btnUpdate.setOnClickListener { installUpdate() }
-        // Tapping the version in the header re-checks by hand.
-        tvVersion.setOnClickListener { checkForUpdate(announce = true) }
+        findViewById<View>(R.id.rowCheck).setOnClickListener { checkForUpdate(announce = true) }
         checkForUpdate(announce = false)
 
         val (dw, dh) = Caps.displaySize(this)
@@ -156,12 +183,58 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- tabs ----------
+
+    private fun bindTabs() {
+        pages = listOf(
+            findViewById(R.id.pageRecord),
+            findViewById(R.id.pageCapture),
+            findViewById(R.id.pageControls),
+            findViewById(R.id.pageInfo)
+        )
+        tabs = listOf(
+            findViewById(R.id.tabRecord),
+            findViewById(R.id.tabCapture),
+            findViewById(R.id.tabControls),
+            findViewById(R.id.tabInfo)
+        )
+        tabIcons = listOf(
+            findViewById(R.id.icTabRecord),
+            findViewById(R.id.icTabCapture),
+            findViewById(R.id.icTabControls),
+            findViewById(R.id.icTabInfo)
+        )
+        tabLabels = listOf(
+            findViewById(R.id.tvTabRecord),
+            findViewById(R.id.tvTabCapture),
+            findViewById(R.id.tvTabControls),
+            findViewById(R.id.tvTabInfo)
+        )
+        tabs.forEachIndexed { i, tab -> tab.setOnClickListener { selectTab(i) } }
+        selectTab(0)
+    }
+
+    private fun selectTab(index: Int) {
+        tabIndex = index.coerceIn(0, pages.lastIndex)
+        pages.forEachIndexed { i, p ->
+            p.visibility = if (i == tabIndex) View.VISIBLE else View.GONE
+        }
+        tabs.forEachIndexed { i, tab ->
+            val on = i == tabIndex
+            tab.setBackgroundResource(if (on) R.drawable.bg_nav_active else 0)
+            val tint = getColor(if (on) R.color.txt else R.color.txtFaint)
+            tabIcons[i].setColorFilter(tint)
+            tabLabels[i].setTextColor(tint)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         if (awaitingInstallPermission) {
             awaitingInstallPermission = false
             if (packageManager.canRequestPackageInstalls()) installUpdate()
         }
+        confirmUpdateInstalled()
         RecorderService.onEvent = { runOnUiThread { refreshUi() } }
         // Dragging the bubble onto the close target clears the preference, so sync
         // the switch first. Reading the stale switch here used to bring it back.
@@ -180,14 +253,21 @@ class MainActivity : Activity() {
 
     private fun checkForUpdate(announce: Boolean) {
         if (announce) Toast.makeText(this, R.string.update_checking, Toast.LENGTH_SHORT).show()
+        tvUpdateState.text = getString(R.string.update_checking)
         Updater.check(this) { release ->
             if (isFinishing || isDestroyed) return@check
             pendingUpdate = release
             if (release != null) {
-                rowUpdate.visibility = View.VISIBLE
-                tvUpdate.text = getString(R.string.update_available, release.version.removePrefix("v"))
+                btnUpdate.visibility = View.VISIBLE
+                btnUpdate.isEnabled = true
+                btnUpdate.text = getString(R.string.update_ready)
+                dotUpdate.visibility = View.VISIBLE
+                tvUpdateState.text =
+                    getString(R.string.update_available, release.version.removePrefix("v"))
             } else {
-                rowUpdate.visibility = View.GONE
+                btnUpdate.visibility = View.GONE
+                dotUpdate.visibility = View.GONE
+                tvUpdateState.text = getString(R.string.update_current)
                 if (announce) Toast.makeText(this, R.string.update_current, Toast.LENGTH_SHORT).show()
             }
         }
@@ -202,13 +282,60 @@ class MainActivity : Activity() {
             )
             return
         }
+        btnUpdate.isEnabled = false
         Updater.downloadAndInstall(this, release) { state ->
+            btnUpdate.isEnabled = true
             if (state != null) {
-                tvUpdate.setText(state)
+                tvUpdateState.setText(state)
             } else {
-                tvUpdate.text = getString(R.string.update_available, release.version.removePrefix("v"))
+                tvUpdateState.text =
+                    getString(R.string.update_available, release.version.removePrefix("v"))
             }
         }
+    }
+
+    /**
+     * The installer runs in its own process and reports nothing back, so the only
+     * honest proof is the build number that is actually installed. When it reached
+     * what we asked for, say so once with a notification.
+     */
+    private fun confirmUpdateInstalled() {
+        val want = prefs.pendingUpdateCode
+        if (want <= 0L) return
+        val info = runCatching { packageManager.getPackageInfo(packageName, 0) }.getOrNull() ?: return
+        val now = if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+        if (now < want) return
+        prefs.pendingUpdateCode = 0L
+        val name = info.versionName.orEmpty()
+        tvVersion.text = name
+        tvVersionValue.text = name
+        tvBuildValue.text = now.toString()
+        tvUpdateState.text = getString(R.string.update_current)
+        btnUpdate.visibility = View.GONE
+        dotUpdate.visibility = View.GONE
+        notifyUpdated(name)
+    }
+
+    private fun notifyUpdated(version: String) {
+        val nm = getSystemService(NotificationManager::class.java)
+        if (nm.getNotificationChannel(CHANNEL_UPDATE) == null) {
+            nm.createNotificationChannel(
+                NotificationChannel(CHANNEL_UPDATE, "Updates", NotificationManager.IMPORTANCE_DEFAULT)
+                    .apply { setShowBadge(true) }
+            )
+        }
+        val open = PendingIntent.getActivity(
+            this, 0, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val n = Notification.Builder(this, CHANNEL_UPDATE)
+            .setSmallIcon(R.drawable.ic_notif)
+            .setContentTitle(getString(R.string.update_success_title))
+            .setContentText(getString(R.string.update_success_body, version))
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
+        runCatching { nm.notify(NOTIF_UPDATE, n) }
     }
 
     // ---------- settings rows ----------
