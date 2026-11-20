@@ -55,7 +55,8 @@ object Updater {
         val app = context.applicationContext
         onState(R.string.update_downloading)
         Thread {
-            val ok = runCatching { download(app, release.apkUrl) }.getOrDefault(false)
+            val ok = runCatching { download(app, release.apkUrl) && apkOk(app, release.code) }
+                .getOrDefault(false)
             main.post {
                 if (ok) {
                     onState(null)
@@ -65,6 +66,21 @@ object Updater {
                 }
             }
         }.start()
+    }
+
+    /**
+     * True when the file on disk really is an installable APK for the build we
+     * announced. A truncated download used to be handed straight to the installer,
+     * which only answered "app not installed" with no clue why.
+     */
+    private fun apkOk(context: Context, code: Long): Boolean {
+        val out = File(context.cacheDir, APK_NAME)
+        if (out.length() <= 0L) return false
+        val info = context.packageManager.getPackageArchiveInfo(out.absolutePath, 0) ?: return false
+        if (info.packageName != context.packageName) return false
+        if (code <= 0L) return true
+        val got = localVersionCode(info)
+        return got == code
     }
 
     private fun fetchLatest(): Release {
