@@ -2,7 +2,9 @@ package com.zrec.recorder
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import org.json.JSONObject
@@ -17,7 +19,7 @@ import java.net.URL
  */
 object Updater {
 
-    private const val OWNER = "pancasilayangpertama-maker"
+    private const val OWNER = "Zdevlops"
     private const val REPO = "zrec"
     private const val LATEST = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
     private const val USER_AGENT = "Zrec-Updater"
@@ -25,7 +27,7 @@ object Updater {
     /** apk file inside cacheDir; ApkProvider serves exactly this file */
     const val APK_NAME = "update.apk"
 
-    data class Release(val version: String, val apkUrl: String)
+    data class Release(val version: String, val apkUrl: String, val code: Long = 0L)
 
     private val main = Handler(Looper.getMainLooper())
 
@@ -34,13 +36,19 @@ object Updater {
         val app = context.applicationContext
         Thread {
             val remote = runCatching { fetchLatest() }.getOrNull()
-            val local = runCatching {
-                app.packageManager.getPackageInfo(app.packageName, 0).versionName
-            }.getOrNull().orEmpty()
-            val newer = remote != null && isNewer(remote.version, local)
+            val info = runCatching {
+                app.packageManager.getPackageInfo(app.packageName, 0)
+            }.getOrNull()
+            val localName = info?.versionName.orEmpty()
+            val localCode = if (info == null) 0L else localVersionCode(info)
+            val newer = remote != null && isNewer(remote, localName, localCode)
             main.post { onResult(if (newer) remote else null) }
         }.start()
     }
+
+    @Suppress("DEPRECATION")
+    private fun localVersionCode(info: PackageInfo): Long =
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
 
     /** Downloads then opens the installer. Progress is reported on the main thread. */
     fun downloadAndInstall(context: Context, release: Release, onState: (Int?) -> Unit) {
@@ -84,11 +92,20 @@ object Updater {
                 }
             }
             if (tag.isBlank() || url.isBlank()) error("no apk asset in latest release")
-            return Release(tag, url)
+            return Release(tag, url, versionCodeIn(json.optString("body")))
         } finally {
             conn.disconnect()
         }
     }
+
+    /**
+     * The release body carries `<!-- zrec:versionCode=8 -->`. Comparing build
+     * numbers is the only thing that works here: the release tag stays v1.0.0
+     * while the build keeps going up, so semver alone would never report an
+     * update again.
+     */
+    private fun versionCodeIn(body: String): Long =
+        CODE_IN_BODY.find(body)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
 
     private fun download(context: Context, url: String): Boolean {
         val out = File(context.cacheDir, APK_NAME)
@@ -119,6 +136,17 @@ object Updater {
         context.startActivity(intent)
     }
 
+    /**
+     * True when the remote release should replace what is installed.
+     *
+     * Build numbers win whenever the release advertises one, because versionName
+     * is pinned to 1.0.0 by request and would otherwise look "not newer" forever.
+     */
+    fun isNewer(remote: Release, localName: String, localCode: Long): Boolean {
+        if (remote.code > 0L) return remote.code > localCode
+        return isNewer(remote.version, localName)
+    }
+
     /** Compares dotted versions such as "v1.2.0" and "1.1.0". */
     fun isNewer(remote: String, local: String): Boolean {
         val a = numbers(remote)
@@ -136,4 +164,6 @@ object Updater {
         version.trim().removePrefix("v").removePrefix("V")
             .split('.')
             .mapNotNull { part -> part.takeWhile { it.isDigit() }.toIntOrNull() }
+
+    private val CODE_IN_BODY = Regex("""zrec:versionCode=(\d+)""")
 }
