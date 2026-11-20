@@ -5,6 +5,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
@@ -281,13 +282,7 @@ class MainActivity : Activity() {
     }
 
     private fun buildSwitches() {
-        swOverlay.isChecked = prefs.overlay && hasOverlayPermission()
-        swOverlay.setOnCheckedChangeListener { _, v ->
-            if (v) askOverlay() else {
-                prefs.overlay = false
-                startService(Intent(this, OverlayService::class.java).setAction(OverlayService.ACTION_HIDE))
-            }
-        }
+        syncOverlaySwitch()
 
         swHide.isChecked = prefs.hideOverlayOnRecord
         swHide.setOnCheckedChangeListener { _, v -> prefs.hideOverlayOnRecord = v }
@@ -297,6 +292,22 @@ class MainActivity : Activity() {
 
         swCount.isChecked = prefs.countdown
         swCount.setOnCheckedChangeListener { _, v -> prefs.countdown = v }
+    }
+
+    /** The bubble can be closed by dropping it on the close target, so the switch
+     *  has to follow the saved preference instead of assuming it stays on. */
+    private fun syncOverlaySwitch() {
+        val want = prefs.overlay && hasOverlayPermission()
+        if (swOverlay.isChecked != want) {
+            swOverlay.setOnCheckedChangeListener(null)
+            swOverlay.isChecked = want
+        }
+        swOverlay.setOnCheckedChangeListener { _, v ->
+            if (v) askOverlay() else {
+                prefs.overlay = false
+                startService(Intent(this, OverlayService::class.java).setAction(OverlayService.ACTION_HIDE))
+            }
+        }
     }
 
     private fun hasOverlayPermission(): Boolean =
@@ -411,6 +422,8 @@ class MainActivity : Activity() {
         btnRecord.text = getString(R.string.btn_start)
         btnRecord.setBackgroundResource(R.drawable.bg_btn_record)
         btnRecord.setTextColor(getColor(R.color.bg))
+
+        syncOverlaySwitch()
     }
 
     // ---------- start ----------
@@ -464,7 +477,18 @@ class MainActivity : Activity() {
     }
 
     private fun requestProjection() {
-        val go = { startActivityForResult(projectionManager().createScreenCaptureIntent(), REQ_PROJ) }
+        val go = {
+            val pm = projectionManager()
+            // Android 14+ menampilkan pilihan "satu aplikasi / seluruh layar". Zrec selalu
+            // merekam seluruh layar, jadi pilihannya dibuang lewat createConfigForDefaultDisplay():
+            // dialog yang muncul cuma izin mulai merekam, tanpa langkah pilih aplikasi.
+            val intent = if (Build.VERSION.SDK_INT >= 34) {
+                pm.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+            } else {
+                pm.createScreenCaptureIntent()
+            }
+            startActivityForResult(intent, REQ_PROJ)
+        }
         if (prefs.countdown && !shotMode) countdown(go) else go()
     }
 

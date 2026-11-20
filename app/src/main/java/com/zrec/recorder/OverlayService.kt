@@ -3,11 +3,15 @@ package com.zrec.recorder
 import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
+import android.database.ContentObserver
 import android.graphics.PixelFormat
+import android.media.AudioManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.SystemClock
+import android.provider.Settings
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
@@ -18,6 +22,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Toast
 import kotlin.math.abs
+import kotlin.math.hypot
 
 /**
  * Draggable bubble that floats over other apps. It hides itself while a recording
@@ -29,6 +34,12 @@ class OverlayService : Service() {
     companion object {
         const val ACTION_SHOW = "com.zrec.OVERLAY_SHOW"
         const val ACTION_HIDE = "com.zrec.OVERLAY_HIDE"
+        /** Munculkan bola sebentar saat lagi disembunyikan (volume bawah 2x / tombol notifikasi). */
+        const val ACTION_PEEK = "com.zrec.OVERLAY_PEEK"
+        /** Berapa lama bola kelihatan setelah dipanggil, dalam milidetik. */
+        private const val PEEK_MS = 5000L
+        /** Dua penurunan volume dalam rentang ini dianggap "tekan volume bawah 2x". */
+        private const val VOL_GAP_MS = 900L
         @Volatile var running = false
     }
 
@@ -40,6 +51,15 @@ class OverlayService : Service() {
     private var btnPause: ImageButton? = null
     private var dot: View? = null
     private var params: WindowManager.LayoutParams? = null
+
+    /** Drop target shown while dragging; letting go over it closes the control. */
+    private var closeZone: View? = null
+    private var closeHot = false
+
+    /** Wall clock until which the bubble stays visible while a recording hides it. */
+    private var peekUntil = 0L
+    private var lastVolume = -1
+    private var lastVolDownAt = 0L
 
     private val handler = Handler(Looper.getMainLooper())
     private var downX = 0f
@@ -56,6 +76,24 @@ class OverlayService : Service() {
         }
     }
 
+    /** Two volume-down presses inside this window call the bubble back. */
+    private val volObserver = object : ContentObserver(handler) {
+        override fun onChange(selfChange: Boolean) {
+            val am = getSystemService(AudioManager::class.java) ?: return
+            val v = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val wentDown = lastVolume >= 0 && v < lastVolume
+            lastVolume = v
+            if (!wentDown) return
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastVolDownAt <= VOL_GAP_MS) {
+                lastVolDownAt = 0L
+                peek()
+            } else {
+                lastVolDownAt = now
+            }
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
@@ -65,12 +103,21 @@ class OverlayService : Service() {
         addBubble()
         running = true
         handler.post(sync)
+        lastVolume = (getSystemService(AudioManager::class.java))
+            ?.getStreamVolume(AudioManager.STREAM_MUSIC) ?: -1
+        runCatching {
+            contentResolver.registerContentObserver(Settings.System.CONTENT_URI, true, volObserver)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_HIDE) {
-            stopSelf()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_HIDE -> {
+                stopSelf()
+                return START_NOT_STICKY
+            }
+
+            ACTION_PEEK -> peek()
         }
         return START_STICKY
     }
@@ -135,6 +182,8 @@ class OverlayService : Service() {
                     lp.y = startY + dy.toInt()
                     val v = root
                     if (v != null) runCatching { wm.updateViewLayout(v, lp) }
+                    if (closeZone == null) addCloseZone()
+                    setCloseHot(overCloseZone())
                 }
                 return true
             }
@@ -142,13 +191,87 @@ class OverlayService : Service() {
             MotionEvent.ACTION_UP -> {
                 if (!dragged) {
                     expand(!expanded)
+                } else if (overCloseZone()) {
+                    removeCloseZone()
+                    closeControl()
+                    return true
                 } else {
                     snap()
                 }
+                removeCloseZone()
+                return true
+            }
+
+            MotionEvent.ACTION_CANCEL -> {
+                removeCloseZone()
                 return true
             }
         }
         return false
+    }
+
+    // ---------- close area ----------
+
+    private fun addCloseZone() {
+        if (closeZone != null) return
+        val z = LayoutInflater.from(this).inflate(R.layout.overlay_close, null)
+        val type = if (Build.VERSION.SDK_INT >= 26) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val lp = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply {
+            gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+            y = dp(96)
+        }
+        closeZone = z
+        closeHot = false
+        runCatching { wm.addView(z, lp) }
+    }
+
+    private fun removeCloseZone() {
+        closeZone?.let { runCatching { wm.removeView(it) } }
+        closeZone = null
+        closeHot = false
+    }
+
+    private fun setCloseHot(hot: Boolean) {
+        if (hot == closeHot) return
+        closeHot = hot
+        closeZone?.setBackgroundResource(
+            if (hot) R.drawable.bg_close_zone_hot else R.drawable.bg_close_zone
+        )
+        closeZone?.scaleX = if (hot) 1.15f else 1f
+        closeZone?.scaleY = if (hot) 1.15f else 1f
+    }
+
+    /** True when the bubble sits on top of the close target. */
+    private fun overCloseZone(): Boolean {
+        val z = closeZone ?: return false
+        val b = root?.findViewById<View>(R.id.bubble) ?: return false
+        if (z.width == 0 || b.width == 0) return false
+        val zl = IntArray(2)
+        val bl = IntArray(2)
+        z.getLocationOnScreen(zl)
+        b.getLocationOnScreen(bl)
+        val dx = (bl[0] + b.width / 2f) - (zl[0] + z.width / 2f)
+        val dy = (bl[1] + b.height / 2f) - (zl[1] + z.height / 2f)
+        return hypot(dx, dy) <= z.width * 0.75f
+    }
+
+    private fun closeControl() {
+        prefs.overlay = false
+        toast("Floating control closed")
+        stopSelf()
     }
 
     private fun snap() {
@@ -173,8 +296,9 @@ class OverlayService : Service() {
         val lp = params ?: return
         val recording = RecorderService.active
 
-        // Clean video: the bubble disappears the moment recording starts.
-        val hide = recording && prefs.hideOverlayOnRecord
+        // Clean video: the bubble disappears the moment recording starts, but it
+        // comes back for a few seconds when called (volume down twice).
+        val hide = recording && prefs.hideOverlayOnRecord && !peeking()
         if (hide) {
             if (expanded) expand(false)
             if (v.visibility != View.GONE) v.visibility = View.GONE
@@ -188,6 +312,16 @@ class OverlayService : Service() {
         dot?.visibility = if (recording) View.VISIBLE else View.GONE
         btnToggle?.setImageResource(if (recording) R.drawable.ic_stop else R.drawable.ic_rec)
         btnPause?.alpha = if (recording) 1f else 0.35f
+    }
+
+    private fun peeking(): Boolean = SystemClock.elapsedRealtime() < peekUntil
+
+    /** Show the bubble for PEEK_MS even though the recording is hiding it. */
+    private fun peek() {
+        if (root == null) return
+        peekUntil = SystemClock.elapsedRealtime() + PEEK_MS
+        refresh()
+        handler.postDelayed({ if (!peeking()) refresh() }, PEEK_MS + 80)
     }
 
     private fun toggleRecord() {
@@ -234,6 +368,8 @@ class OverlayService : Service() {
     override fun onDestroy() {
         running = false
         handler.removeCallbacksAndMessages(null)
+        runCatching { contentResolver.unregisterContentObserver(volObserver) }
+        removeCloseZone()
         runCatching { root?.let { wm.removeView(it) } }
         root = null
         super.onDestroy()
