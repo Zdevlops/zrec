@@ -6,7 +6,7 @@
   </a>
 </p>
 
-Screen recorder Android tanpa iklan, tanpa watermark, dan tanpa akun. Dibuat native dengan Kotlin dan framework Android saja, jadi APK-nya di bawah 100 KB.
+Screen recorder Android tanpa iklan, tanpa watermark, dan tanpa akun. Dibuat native dengan Kotlin dan framework Android saja, jadi APK-nya cuma sekitar 100 KB.
 
 Satu file, tidak ada tambahan lain. Ambil di [Releases](../../releases/latest).
 
@@ -88,7 +88,7 @@ Rilis terakhir:
 
 | File | Ukuran | Build | SHA-256 |
 |---|---|---|---|
-| `Zrec-1.1.0.apk` | - | 12 | - |
+| `Zrec-1.1.0.apk` | 104.781 byte | 12 | `464fbe24981202a7b40e89f3335d4f1877bb1ec7469c0028fb06784c31fbd99b` |
 
 File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
 
