@@ -25,8 +25,8 @@ Satu file, tidak ada tambahan lain. Ambil di [Releases](../../releases/latest).
 | **Summon by volume** | Tekan volume bawah dua kali untuk memunculkan bola lagi selama 5 detik |
 | **Shake to stop** | Goyang dua kali saat merekam |
 | **Screenshot** | Bisa saat merekam atau tanpa merekam, tersimpan ke `Pictures/Zrec` |
-| **Audio** | Off, Mic, Internal, atau Mic + internal |
-| **Rotation handling** | Rekaman dipecah ke file baru saat layar diputar, jadi tidak ada video miring |
+| **Audio** | Off, Mic, Internal, atau Mic + internal. Kalau sumbernya ditolak HP, rekaman lanjut tanpa suara |
+| **Rotation handling** | Android 14+ hanya mengizinkan satu sesi tangkap per izin layar, jadi rekaman tetap hidup dengan orientasi awal saat ponsel diputar |
 | **Honest options** | Resolusi dan frame rate difilter dari kemampuan encoder HP, bukan daftar karangan |
 
 Hasil rekaman masuk ke `Movies/Zrec`, screenshot ke `Pictures/Zrec`.
@@ -81,9 +81,9 @@ sha256sum Zrec-1.0.0.apk
 
 Rilis terakhir:
 
-| File | Ukuran | SHA-256 |
-|---|---|---|
-| `Zrec-1.0.0.apk` | 85.949 byte | `41aef5c4a8f616638750fc85c492306e19b1e3e1bb548b6eb97e0ba1e65c3df8` |
+| File | Ukuran | Build | SHA-256 |
+|---|---|---|---|
+| `Zrec-1.0.0.apk` | 99.181 byte | 11 | `bce55b69403de826dc520fc829239d6779ee1db0e7f81559f47ce460981a3431` |
 
 File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
 
