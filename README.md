@@ -1,8 +1,8 @@
 <img src="docs/banner.svg" alt="Zrec — screen recorder for Android" width="100%">
 
 <p align="center">
-  <a href="https://github.com/pancasilayangpertama-maker/zrec/releases/latest">
-    <img alt="Download APK" src="https://img.shields.io/github/v/release/pancasilayangpertama-maker/zrec?style=for-the-badge&label=Download%20APK&color=F4F1EC&labelColor=121110">
+  <a href="https://github.com/Zdevlops/zrec/releases/latest">
+    <img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-v1.0.0-F4F1EC?style=for-the-badge&labelColor=121110">
   </a>
 </p>
 
