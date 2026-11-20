@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/Zdevlops/zrec/releases/latest">
-    <img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-v1.0.0-F4F1EC?style=for-the-badge&labelColor=121110">
+    <img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-v1.1.0-F4F1EC?style=for-the-badge&labelColor=121110">
   </a>
 </p>
 
@@ -19,13 +19,16 @@ Satu file, tidak ada tambahan lain. Ambil di [Releases](../../releases/latest).
 | Feature | Description |
 |---|---|
 | **Screen recording** | MediaProjection langsung ke hardware encoder, tanpa re-encode |
-| **Floating control** | Bola yang bisa digeser di luar aplikasi: record, stop, pause, screenshot |
+| **Floating control** | Bola yang bisa digeser di luar aplikasi: record, stop, pause, screenshot, dan ganti sumber audio |
 | **Close by drag** | Geser bola ke target di tengah bawah untuk menutupnya, tanpa masuk ke aplikasi |
 | **Hide while recording** | Bola tampil 2,5 detik saat rekaman mulai, lalu hilang supaya video bersih |
 | **Summon by volume** | Tekan volume bawah dua kali untuk memunculkan bola lagi selama 5 detik |
 | **Shake to stop** | Goyang dua kali saat merekam |
 | **Screenshot** | Bisa saat merekam atau tanpa merekam, tersimpan ke `Pictures/Zrec` |
 | **Audio** | Off, Mic, Internal, atau Mic + internal. Kalau sumbernya ditolak HP, rekaman lanjut tanpa suara |
+| **Auto split** | Rekaman dipecah otomatis tiap 5 menit di titik keyframe, jadi satu file bermasalah cuma menghilangkan satu potongan |
+| **Quick Settings tile** | Tile di panel pengaturan cepat: tap saat merekam untuk stop, tap saat idle untuk membuka aplikasi |
+| **Recent recordings** | Lima rekaman terakhir tampil di tab Record, tap untuk memutar. Setelah stop, notifikasi juga bisa membuka filenya |
 | **Rotation handling** | Android 14+ hanya mengizinkan satu sesi tangkap per izin layar, jadi rekaman tetap hidup dengan orientasi awal saat ponsel diputar |
 | **Honest options** | Resolusi dan frame rate difilter dari kemampuan encoder HP, bukan daftar karangan |
 
@@ -46,9 +49,11 @@ Resolusi terendah 720p. Di bawah itu teks di layar berhenti terbaca setelah diko
 
 ## Auto update
 
-Zrec memeriksa rilis baru setiap kali dibuka. Kalau ada yang lebih baru, muncul baris **Version x.y.z available** di atas tombol rekam. Tap **Update**, APK diunduh, lalu installer Android terbuka.
+Zrec memeriksa rilis baru saat aplikasi dibuka. Kalau ada yang lebih baru, muncul baris **Version x.y.z available** di atas tombol rekam. Tap **Update**, APK diunduh, lalu installer Android terbuka.
 
-Yang dibandingkan adalah **build number**, bukan nama versi. Ini disengaja: semua rilis memakai tag `v1.0.0`, jadi membandingkan nama versi akan selalu berhenti di "sudah terbaru". Build number ada di halaman rilis sebagai komentar `<!-- zrec:versionCode=N -->`.
+Hasil pengecekan disimpan 30 menit. Tap berulang dalam rentang itu memakai jawaban yang sama, supaya batas 60 permintaan per jam dari GitHub tidak habis. Kalau jaringan gagal padahal masih ada jawaban tersimpan, jawaban lama yang dipakai, bukan pesan error.
+
+Yang dibandingkan adalah **build number**, bukan nama versi. Nama versi muncul di tag rilis (`v1.1.0`), tapi angka yang menentukan update adalah build number di halaman rilis, ditulis sebagai komentar `<!-- zrec:versionCode=N -->`. Dengan begitu rilis yang di-tag ulang atau APK yang diunggah ulang tetap terdeteksi.
 
 Android tidak mengizinkan aplikasi sideload memasang pembaruan tanpa konfirmasi. Jadi satu tap tetap diperlukan. Itu batas sistem, bukan pilihan Zrec.
 
@@ -71,19 +76,19 @@ Setiap APK punya SHA-256 yang dicantumkan di halaman release. Cocokkan sebelum m
 
 ```powershell
 # Windows
-Get-FileHash Zrec-1.0.0.apk -Algorithm SHA256
+Get-FileHash Zrec-1.1.0.apk -Algorithm SHA256
 ```
 
 ```bash
 # Termux / Linux
-sha256sum Zrec-1.0.0.apk
+sha256sum Zrec-1.1.0.apk
 ```
 
 Rilis terakhir:
 
 | File | Ukuran | Build | SHA-256 |
 |---|---|---|---|
-| `Zrec-1.0.0.apk` | 99.181 byte | 11 | `bce55b69403de826dc520fc829239d6779ee1db0e7f81559f47ce460981a3431` |
+| `Zrec-1.1.0.apk` | - | 12 | - |
 
 File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
 
@@ -109,8 +114,9 @@ Repo ini juga punya GitHub Actions: setiap push ke `main` menghasilkan APK sebag
 app/src/main/java/com/zrec/recorder/
   MainActivity.kt      layar utama dan pengaturan
   RecorderService.kt   foreground service, notifikasi, guncangan, rotasi
-  ScreenRecorder.kt    MediaCodec + MediaMuxer, audio, jeda
+  ScreenRecorder.kt    MediaCodec + MediaMuxer, audio, jeda, pemecahan per 5 menit
   OverlayService.kt    floating control
+  RecorderTileService.kt  tile pengaturan cepat
   Shot.kt              screenshot sekali jalan
   Caps.kt              pembacaan kemampuan encoder
   Updater.kt           cek rilis, unduh APK, buka installer
@@ -120,10 +126,11 @@ app/src/main/java/com/zrec/recorder/
 
 ## Known limits
 
-- Floating control tidak bisa terlihat di layar tapi hilang dari rekaman. Android tidak menyediakan itu. Karena itu bola disembunyikan selama merekam, dan kontrol pindah ke notifikasi.
+- Floating control tidak bisa terlihat di layar tapi hilang dari rekaman dengan sempurna. Bola dan target tutupnya sekarang ditandai `FLAG_SECURE`, jadi tidak ikut terekam, tapi di sebagian HP areanya bisa muncul sebagai kotak hitam kecil. Karena itu bola tetap disembunyikan selama merekam, dan kontrol pindah ke notifikasi.
 - Memanggil bola dengan volume bawah 2x hanya bekerja kalau volume benar-benar turun. Kalau media sudah di angka 0, tidak ada perubahan yang bisa dideteksi. Kontrol rekam tetap ada di notifikasi, dan bola muncul sendiri begitu rekaman selesai.
 - Audio internal bisa kosong di aplikasi yang melarang perekaman suaranya. Ini keputusan aplikasi tersebut, bukan bug Zrec.
-- Kalau "Hide while recording" dimatikan, bola ikut terekam.
+- Ganti sumber audio saat merekam baru berlaku untuk rekaman berikutnya, karena jalur audio dibuka sekali di awal file.
+- Rekaman dipecah tiap 5 menit, jadi rekaman 20 menit menghasilkan empat file, bukan satu file besar.
 - Rotasi di tengah rekaman menghasilkan dua file, bukan satu file yang berputar.
 
 ## License
