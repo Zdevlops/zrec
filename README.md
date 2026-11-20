@@ -48,7 +48,7 @@ Zrec memeriksa rilis baru setiap kali dibuka. Kalau ada yang lebih baru, muncul 
 
 Android tidak mengizinkan aplikasi sideload memasang pembaruan tanpa konfirmasi. Jadi satu tap tetap diperlukan. Itu batas sistem, bukan pilihan Zrec.
 
-Butuh versi tanpa jaringan sama sekali? Pakai [Zrec lite](https://github.com/pancasilayangpertama-maker/zrec-lite).
+Butuh versi tanpa jaringan sama sekali? Pakai [Zrec lite](https://github.com/Zdevlops/zrec-lite).
 
 ## Permissions
 
@@ -61,12 +61,34 @@ Butuh versi tanpa jaringan sama sekali? Pakai [Zrec lite](https://github.com/pan
 
 Jaringan dipakai untuk satu hal saja: menanyakan rilis terbaru ke GitHub. Tidak ada analytics, tidak ada akun, tidak ada data yang dikirim.
 
+## Verifikasi unduhan
+
+Setiap APK punya SHA-256 yang dicantumkan di halaman release. Cocokkan sebelum memasang:
+
+```powershell
+# Windows
+Get-FileHash Zrec-1.0.0.apk -Algorithm SHA256
+```
+
+```bash
+# Termux / Linux
+sha256sum Zrec-1.0.0.apk
+```
+
+Rilis terakhir:
+
+| File | Ukuran | SHA-256 |
+|---|---|---|
+| `Zrec-1.0.0.apk` | 78.685 byte | `dcb9327695a94e01c6ec1134e05549e7e19479d3c0f94bd8f487c9536b154b43` |
+
+File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
+
 ## Build
 
 Butuh JDK 17 dan Android SDK. Tidak perlu Android Studio.
 
 ```bash
-git clone https://github.com/pancasilayangpertama-maker/zrec.git
+git clone https://github.com/Zdevlops/zrec.git
 cd zrec
 gradle assembleRelease
 ```

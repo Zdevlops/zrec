@@ -53,7 +53,11 @@ jobs:
           VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
           mkdir -p dist
           cp app/build/outputs/apk/release/app-release.apk "dist/Zrec-$VERSION.apk"
+          ( cd dist && sha256sum "Zrec-$VERSION.apk" > "Zrec-$VERSION.apk.sha256" )
+          echo "APK_NAME=Zrec-$VERSION.apk" >> "$GITHUB_ENV"
           echo "APK=dist/Zrec-$VERSION.apk" >> "$GITHUB_ENV"
+          echo "SHA_FILE=dist/Zrec-$VERSION.apk.sha256" >> "$GITHUB_ENV"
+          echo "SHA256=$(cut -d' ' -f1 "dist/Zrec-$VERSION.apk.sha256")" >> "$GITHUB_ENV"
 
       - name: Publish release
         uses: softprops/action-gh-release@v2
@@ -62,7 +66,18 @@ jobs:
           name: Zrec ${{ github.ref_name }}
           body: |
             #1 OpenSource software android by \@Zdevlops
-          files: ${{ env.APK }}
+
+            **SHA-256** `${{ env.APK_NAME }}`
+
+            ```
+            ${{ env.SHA256 }}
+            ```
+
+            Cek di HP sebelum pasang: `sha256sum ${{ env.APK_NAME }}` (Termux) atau
+            `Get-FileHash ${{ env.APK_NAME }} -Algorithm SHA256` (Windows).
+          files: |
+            ${{ env.APK }}
+            ${{ env.SHA_FILE }}
           overwrite_files: true
           draft: false
           prerelease: false
