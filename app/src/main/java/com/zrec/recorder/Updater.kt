@@ -24,6 +24,9 @@ object Updater {
     private const val LATEST = "https://api.github.com/repos/$OWNER/$REPO/releases/latest"
     private const val USER_AGENT = "Zrec-Updater"
 
+    /** A successful answer is reused for this long, and served again if the next try fails. */
+    private const val CACHE_MS = 30 * 60 * 1000L
+
     /** apk file inside cacheDir; ApkProvider serves exactly this file */
     const val APK_NAME = "update.apk"
 
@@ -35,7 +38,7 @@ object Updater {
     fun check(context: Context, onResult: (Release?) -> Unit) {
         val app = context.applicationContext
         Thread {
-            val remote = runCatching { fetchLatest() }.getOrNull()
+            val remote = runCatching { fetchLatest(app) }.getOrNull()
             val info = runCatching {
                 app.packageManager.getPackageInfo(app.packageName, 0)
             }.getOrNull()
@@ -83,7 +86,32 @@ object Updater {
         return got == code
     }
 
-    private fun fetchLatest(): Release {
+    /**
+     * Answers from the cache when it is fresh, and falls back to it when the network
+     * refuses. GitHub allows 60 anonymous requests an hour per IP; before this, every
+     * extra tap on Info could end in "check failed" with no explanation.
+     */
+    private fun fetchLatest(context: Context): Release {
+        val prefs = Prefs(context)
+        val cached = prefs.cachedCode
+        val haveCache = cached > 0L && prefs.cachedUrl.isNotBlank()
+        val age = System.currentTimeMillis() - prefs.lastCheckAt
+        if (haveCache && age in 0 until CACHE_MS) {
+            return Release(prefs.cachedName, prefs.cachedUrl, cached)
+        }
+        return try {
+            val fresh = fetchNet()
+            prefs.lastCheckAt = System.currentTimeMillis()
+            prefs.cachedName = fresh.version
+            prefs.cachedUrl = fresh.apkUrl
+            prefs.cachedCode = fresh.code
+            fresh
+        } catch (t: Throwable) {
+            if (haveCache) Release(prefs.cachedName, prefs.cachedUrl, cached) else throw t
+        }
+    }
+
+    private fun fetchNet(): Release {
         val conn = (URL(LATEST).openConnection() as HttpURLConnection).apply {
             connectTimeout = 8000
             readTimeout = 10000
@@ -115,10 +143,9 @@ object Updater {
     }
 
     /**
-     * The release body carries `<!-- zrec:versionCode=8 -->`. Comparing build
-     * numbers is the only thing that works here: the release tag stays v1.0.0
-     * while the build keeps going up, so semver alone would never report an
-     * update again.
+     * The release body carries `<!-- zrec:versionCode=N -->`. The build number is
+     * what decides an update, so a re-tagged or re-uploaded release is still
+     * caught. The tag is used only as the version label shown to the user.
      */
     private fun versionCodeIn(body: String): Long =
         CODE_IN_BODY.find(body)?.groupValues?.getOrNull(1)?.toLongOrNull() ?: 0L
@@ -158,8 +185,8 @@ object Updater {
     /**
      * True when the remote release should replace what is installed.
      *
-     * Build numbers win whenever the release advertises one, because versionName
-     * is pinned to 1.0.0 by request and would otherwise look "not newer" forever.
+     * Build numbers win whenever the release advertises one: they keep counting up
+     * across releases even when the tag is reused or the version name barely moves.
      */
     fun isNewer(remote: Release, localName: String, localCode: Long): Boolean {
         if (remote.code > 0L) return remote.code > localCode

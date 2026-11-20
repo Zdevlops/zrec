@@ -59,4 +59,14 @@
     <string name="update_failed">Download failed. Tap Update to retry.</string>
     <string name="update_checking">Checking for updates...</string>
     <string name="update_current">Zrec is up to date</string>
+
+    <string name="section_recent">Recent recordings</string>
+    <string name="recent_empty">No recordings yet. Press Start recording.</string>
+    <string name="recent_failed">Could not open the video</string>
+    <string name="saved_channel">Saved recordings</string>
+    <string name="saved_title">Recording saved</string>
+    <string name="saved_body">Tap to open the video</string>
+    <string name="tile_label">Zrec recording</string>
+    <string name="tile_stop">Stop recording</string>
+    <string name="tile_start">Start recording</string>
 </resources>

@@ -7,6 +7,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentUris
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionConfig
@@ -16,6 +17,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.provider.Settings
 import android.view.View
 import android.widget.CompoundButton
@@ -25,6 +27,8 @@ import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 class MainActivity : Activity() {
@@ -60,6 +64,8 @@ class MainActivity : Activity() {
     private lateinit var tvVersionValue: TextView
     private lateinit var tvBuildValue: TextView
     private lateinit var dotUpdate: View
+    private lateinit var recentBox: LinearLayout
+    private lateinit var tvRecentEmpty: TextView
 
     // Four tabs: one job per screen, so the record page is nothing but record.
     private lateinit var pages: List<View>
@@ -119,6 +125,8 @@ class MainActivity : Activity() {
         tvVersionValue = findViewById(R.id.tvVersionValue)
         tvBuildValue = findViewById(R.id.tvBuildValue)
         dotUpdate = findViewById(R.id.dotUpdate)
+        recentBox = findViewById(R.id.recentBox)
+        tvRecentEmpty = findViewById(R.id.tvRecentEmpty)
 
         bindTabs()
 
@@ -161,6 +169,7 @@ class MainActivity : Activity() {
         }
 
         refreshUi()
+        buildRecent()
         handleIntent(intent)
     }
 
@@ -228,6 +237,96 @@ class MainActivity : Activity() {
         }
     }
 
+    // ---------- recent recordings ----------
+
+    private class Recent(val name: String, val size: Long, val at: Long, val uri: Uri)
+
+    /**
+     * The five newest takes, straight from MediaStore. On Android 9 and older the
+     * listing would need READ_EXTERNAL_STORAGE, so the saved notification stays the
+     * way to the file there instead of asking for a permission just to browse.
+     */
+    private fun buildRecent() {
+        recentBox.removeAllViews()
+        if (Build.VERSION.SDK_INT < 29) {
+            tvRecentEmpty.visibility = View.GONE
+            return
+        }
+        val rows = runCatching { queryRecent() }.getOrDefault(emptyList())
+        tvRecentEmpty.visibility = if (rows.isEmpty()) View.VISIBLE else View.GONE
+
+        val density = resources.displayMetrics.density
+        fun px(dp: Int) = (dp * density).toInt()
+        for (r in rows) {
+            val row = TextView(this).apply {
+                text = r.name + "\n" + sizeText(r.size) + "  ·  " + dateText(r.at)
+                setTextColor(getColor(R.color.txtDim))
+                textSize = 12f
+                setLineSpacing(px(3).toFloat(), 1f)
+                setPadding(px(14), px(12), px(14), px(12))
+                setBackgroundResource(R.drawable.bg_row)
+                isClickable = true
+            }
+            row.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = px(8) }
+            row.setOnClickListener { openVideo(r.uri) }
+            recentBox.addView(row)
+        }
+    }
+
+    private fun queryRecent(): List<Recent> {
+        val out = ArrayList<Recent>()
+        val cols = arrayOf(
+            MediaStore.Video.Media._ID,
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.DATE_ADDED
+        )
+        contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            cols,
+            MediaStore.Video.Media.RELATIVE_PATH + " LIKE ?",
+            arrayOf("Movies/Zrec%"),
+            MediaStore.Video.Media.DATE_ADDED + " DESC"
+        )?.use { c ->
+            while (c.moveToNext() && out.size < 5) {
+                val id = c.getLong(0)
+                out.add(
+                    Recent(
+                        name = c.getString(1) ?: "Zrec",
+                        size = c.getLong(2),
+                        at = c.getLong(3) * 1000L,
+                        uri = ContentUris.withAppendedId(
+                            MediaStore.Video.Media.EXTERNAL_CONTENT_URI, id
+                        )
+                    )
+                )
+            }
+        }
+        return out
+    }
+
+    private fun openVideo(u: Uri) {
+        val i = Intent(Intent.ACTION_VIEW)
+            .setDataAndType(u, "video/mp4")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        val ok = runCatching { startActivity(i) }.isSuccess
+        if (!ok) {
+            Toast.makeText(this, R.string.recent_failed, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun sizeText(bytes: Long): String = when {
+        bytes >= 1_000_000_000L -> String.format(Locale.US, "%.1f GB", bytes / 1_000_000_000.0)
+        bytes >= 1_000_000L -> String.format(Locale.US, "%.0f MB", bytes / 1_000_000.0)
+        else -> String.format(Locale.US, "%.0f KB", bytes / 1000.0)
+    }
+
+    private fun dateText(ms: Long): String =
+        SimpleDateFormat("dd MMM HH:mm", Locale.US).format(Date(ms))
+
     override fun onResume() {
         super.onResume()
         if (awaitingInstallPermission) {
@@ -242,6 +341,7 @@ class MainActivity : Activity() {
         syncOverlaySwitch()
         if (swOverlay.isChecked) startOverlay()
         refreshUi()
+        buildRecent()
     }
 
     override fun onPause() {
