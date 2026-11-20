@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Warm graphite, not the blue-black every generated UI defaults to. -->
+    <color name="bg">#FF121110</color>
+    <color name="surface">#FF1B1917</color>
+    <color name="surface2">#FF26231F</color>
+    <color name="line">#FF2B2723</color>
+
+    <color name="txt">#FFF4F1EC</color>
+    <color name="txtDim">#FFA8A29B</color>
+    <color name="txtFaint">#FF8A847A</color>
+
+    <!-- Red means one thing only: recording is happening. -->
+    <color name="accent">#FFE5484D</color>
+    <color name="accentDeep">#FFC93C41</color>
+    <color name="accentPress">#FFAE3338</color>
+
+    <!-- The idle primary action is light, so red never stops meaning "live". -->
+    <color name="btnLight">#FFF4F1EC</color>
+    <color name="btnLightPress">#FFDDD8D0</color>
+    <color name="onAccent">#FFFFFFFF</color>
+</resources>
