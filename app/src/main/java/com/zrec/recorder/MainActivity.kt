@@ -14,6 +14,7 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
 import android.view.View
+import android.widget.CompoundButton
 import android.widget.SeekBar
 import android.widget.Switch
 import android.widget.TextView
@@ -52,6 +53,19 @@ class MainActivity : Activity() {
 
     private var pendingUpdate: Updater.Release? = null
     private var awaitingInstallPermission = false
+
+    /** Bound once, so refreshUi() does not churn listeners on every stats tick. */
+    private var overlayBound = false
+    private val overlayListener = CompoundButton.OnCheckedChangeListener { _, v ->
+        if (v) {
+            askOverlay()
+        } else {
+            prefs.overlay = false
+            startService(
+                Intent(this, OverlayService::class.java).setAction(OverlayService.ACTION_HIDE)
+            )
+        }
+    }
 
     private var codecs: List<Caps.Codec> = emptyList()
     private var codec: Caps.Codec? = null
@@ -149,12 +163,11 @@ class MainActivity : Activity() {
             if (packageManager.canRequestPackageInstalls()) installUpdate()
         }
         RecorderService.onEvent = { runOnUiThread { refreshUi() } }
-        if (swOverlay.isChecked && !hasOverlayPermission()) {
-            swOverlay.isChecked = false
-            prefs.overlay = false
-        } else if (swOverlay.isChecked) {
-            startOverlay()
-        }
+        // Dragging the bubble onto the close target clears the preference, so sync
+        // the switch first. Reading the stale switch here used to bring it back.
+        if (prefs.overlay && !hasOverlayPermission()) prefs.overlay = false
+        syncOverlaySwitch()
+        if (swOverlay.isChecked) startOverlay()
         refreshUi()
     }
 
@@ -297,17 +310,16 @@ class MainActivity : Activity() {
     /** The bubble can be closed by dropping it on the close target, so the switch
      *  has to follow the saved preference instead of assuming it stays on. */
     private fun syncOverlaySwitch() {
+        if (!overlayBound) {
+            overlayBound = true
+            swOverlay.setOnCheckedChangeListener(overlayListener)
+        }
         val want = prefs.overlay && hasOverlayPermission()
-        if (swOverlay.isChecked != want) {
-            swOverlay.setOnCheckedChangeListener(null)
-            swOverlay.isChecked = want
-        }
-        swOverlay.setOnCheckedChangeListener { _, v ->
-            if (v) askOverlay() else {
-                prefs.overlay = false
-                startService(Intent(this, OverlayService::class.java).setAction(OverlayService.ACTION_HIDE))
-            }
-        }
+        if (swOverlay.isChecked == want) return
+        // Programmatic correction: do not run the listener's side effects for it.
+        swOverlay.setOnCheckedChangeListener(null)
+        swOverlay.isChecked = want
+        swOverlay.setOnCheckedChangeListener(overlayListener)
     }
 
     private fun hasOverlayPermission(): Boolean =

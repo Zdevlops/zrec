@@ -40,6 +40,10 @@ class OverlayService : Service() {
         private const val PEEK_MS = 5000L
         /** Dua penurunan volume dalam rentang ini dianggap "tekan volume bawah 2x". */
         private const val VOL_GAP_MS = 900L
+        /** Diameter jendela target close, dalam dp. */
+        private const val CLOSE_SIZE = 96
+        /** Jarak tepi bawah target close dari tepi bawah layar, dalam dp. */
+        private const val CLOSE_GAP = 96
         @Volatile var running = false
     }
 
@@ -54,6 +58,7 @@ class OverlayService : Service() {
 
     /** Drop target shown while dragging; letting go over it closes the control. */
     private var closeZone: View? = null
+    private var closeRing: View? = null
     private var closeHot = false
 
     /** Wall clock until which the bubble stays visible while a recording hides it. */
@@ -212,6 +217,7 @@ class OverlayService : Service() {
 
     // ---------- close area ----------
 
+    /** Drop target: a fixed circle centred horizontally, closeGap above the bottom edge. */
     private fun addCloseZone() {
         if (closeZone != null) return
         val z = LayoutInflater.from(this).inflate(R.layout.overlay_close, null)
@@ -222,8 +228,8 @@ class OverlayService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
         val lp = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            dp(CLOSE_SIZE),
+            dp(CLOSE_SIZE),
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
@@ -231,9 +237,10 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
-            y = dp(96)
+            y = dp(CLOSE_GAP)
         }
         closeZone = z
+        closeRing = z.findViewById(R.id.closeRing)
         closeHot = false
         runCatching { wm.addView(z, lp) }
     }
@@ -241,31 +248,50 @@ class OverlayService : Service() {
     private fun removeCloseZone() {
         closeZone?.let { runCatching { wm.removeView(it) } }
         closeZone = null
+        closeRing = null
         closeHot = false
     }
 
     private fun setCloseHot(hot: Boolean) {
         if (hot == closeHot) return
         closeHot = hot
-        closeZone?.setBackgroundResource(
-            if (hot) R.drawable.bg_close_zone_hot else R.drawable.bg_close_zone
-        )
-        closeZone?.scaleX = if (hot) 1.15f else 1f
-        closeZone?.scaleY = if (hot) 1.15f else 1f
+        closeRing?.apply {
+            setBackgroundResource(
+                if (hot) R.drawable.bg_close_zone_hot else R.drawable.bg_close_zone
+            )
+            animate().scaleX(if (hot) 1.12f else 1f)
+                .scaleY(if (hot) 1.12f else 1f)
+                .setDuration(120)
+                .start()
+        }
     }
 
-    /** True when the bubble sits on top of the close target. */
+    /**
+     * Where the drop target is, worked out from the display rather than from the
+     * view. Used as the fallback while the window has not been measured yet.
+     */
+    private fun closeCentreX(): Float = resources.displayMetrics.widthPixels / 2f
+
+    private fun closeCentreY(): Float =
+        resources.displayMetrics.heightPixels - dp(CLOSE_GAP) - dp(CLOSE_SIZE) / 2f
+
+    /**
+     * True when the bubble sits on top of the close target. Uses the target's real
+     * bounds once it has been laid out, and falls back to the geometry the layout
+     * params describe while the window is still unmeasured.
+     */
     private fun overCloseZone(): Boolean {
         val z = closeZone ?: return false
         val b = root?.findViewById<View>(R.id.bubble) ?: return false
-        if (z.width == 0 || b.width == 0) return false
-        val zl = IntArray(2)
         val bl = IntArray(2)
-        z.getLocationOnScreen(zl)
         b.getLocationOnScreen(bl)
-        val dx = (bl[0] + b.width / 2f) - (zl[0] + z.width / 2f)
-        val dy = (bl[1] + b.height / 2f) - (zl[1] + z.height / 2f)
-        return hypot(dx, dy) <= z.width * 0.75f
+        val zl = IntArray(2)
+        z.getLocationOnScreen(zl)
+        val cx = if (z.width > 0) zl[0] + z.width / 2f else closeCentreX()
+        val cy = if (z.height > 0) zl[1] + z.height / 2f else closeCentreY()
+        val dx = (bl[0] + b.width / 2f) - cx
+        val dy = (bl[1] + b.height / 2f) - cy
+        return hypot(dx, dy) <= dp(CLOSE_SIZE) * 0.62f
     }
 
     private fun closeControl() {
@@ -318,10 +344,10 @@ class OverlayService : Service() {
 
     /** Show the bubble for PEEK_MS even though the recording is hiding it. */
     private fun peek() {
-        if (root == null) return
+        // Someone who closed the control on purpose does not get it back.
+        if (root == null || !prefs.overlay) return
         peekUntil = SystemClock.elapsedRealtime() + PEEK_MS
         refresh()
-        handler.postDelayed({ if (!peeking()) refresh() }, PEEK_MS + 80)
     }
 
     private fun toggleRecord() {
