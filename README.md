@@ -48,6 +48,8 @@ Resolusi terendah 720p. Di bawah itu teks di layar berhenti terbaca setelah diko
 
 Zrec memeriksa rilis baru setiap kali dibuka. Kalau ada yang lebih baru, muncul baris **Version x.y.z available** di atas tombol rekam. Tap **Update**, APK diunduh, lalu installer Android terbuka.
 
+Yang dibandingkan adalah **build number**, bukan nama versi. Ini disengaja: semua rilis memakai tag `v1.0.0`, jadi membandingkan nama versi akan selalu berhenti di "sudah terbaru". Build number ada di halaman rilis sebagai komentar `<!-- zrec:versionCode=N -->`.
+
 Android tidak mengizinkan aplikasi sideload memasang pembaruan tanpa konfirmasi. Jadi satu tap tetap diperlukan. Itu batas sistem, bukan pilihan Zrec.
 
 Butuh versi tanpa jaringan sama sekali? Pakai [Zrec lite](https://github.com/Zdevlops/zrec-lite).
@@ -81,7 +83,7 @@ Rilis terakhir:
 
 | File | Ukuran | SHA-256 |
 |---|---|---|
-| `Zrec-1.0.0.apk` | 82.785 byte | `a2475847d597c2246f1b90486940bf241735c9f9c5327db3d172e33f57570404` |
+| `Zrec-1.0.0.apk` | 85.949 byte | `41aef5c4a8f616638750fc85c492306e19b1e3e1bb548b6eb97e0ba1e65c3df8` |
 
 File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
 

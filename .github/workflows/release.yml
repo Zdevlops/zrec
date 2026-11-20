@@ -67,7 +67,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: Zrec ${{ github.ref_name }}
           body: |
-            #1 OpenSource software android by \@Zdevlops
+            #1 OpenSource software android by @Zdevlops
 
             **SHA-256** `${{ env.APK_NAME }}`
 
