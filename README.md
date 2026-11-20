@@ -21,7 +21,7 @@ Satu file, tidak ada tambahan lain. Ambil di [Releases](../../releases/latest).
 | **Screen recording** | MediaProjection langsung ke hardware encoder, tanpa re-encode |
 | **Floating control** | Bola yang bisa digeser di luar aplikasi: record, stop, pause, screenshot |
 | **Close by drag** | Geser bola ke target di tengah bawah untuk menutupnya, tanpa masuk ke aplikasi |
-| **Hide while recording** | Bola hilang otomatis supaya hasil rekaman bersih |
+| **Hide while recording** | Bola tampil 2,5 detik saat rekaman mulai, lalu hilang supaya video bersih |
 | **Summon by volume** | Tekan volume bawah dua kali untuk memunculkan bola lagi selama 5 detik |
 | **Shake to stop** | Goyang dua kali saat merekam |
 | **Screenshot** | Bisa saat merekam atau tanpa merekam, tersimpan ke `Pictures/Zrec` |
@@ -81,7 +81,7 @@ Rilis terakhir:
 
 | File | Ukuran | SHA-256 |
 |---|---|---|
-| `Zrec-1.0.0.apk` | 78.685 byte | `dcb9327695a94e01c6ec1134e05549e7e19479d3c0f94bd8f487c9536b154b43` |
+| `Zrec-1.0.0.apk` | 82.785 byte | `a2475847d597c2246f1b90486940bf241735c9f9c5327db3d172e33f57570404` |
 
 File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
 
