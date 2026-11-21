@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/Zdevlops/zrec/releases/latest">
-    <img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-v1.1.1-F4F1EC?style=for-the-badge&labelColor=121110">
+    <img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-v1.2.0-F4F1EC?style=for-the-badge&labelColor=121110">
   </a>
 </p>
 
@@ -24,7 +24,7 @@ Satu file, tidak ada tambahan lain. Ambil di [Releases](../../releases/latest).
 | **Hide while recording** | Bola tampil 2,5 detik saat rekaman mulai, lalu hilang supaya video bersih |
 | **Summon by volume** | Tekan volume bawah dua kali untuk memunculkan bola lagi selama 5 detik. Kalau tombol volume sedang mengatur stream lain, tombol **Show control** di notifikasi tetap bisa dipakai |
 | **Shake to stop** | Goyang dua kali saat merekam, dengan getar pendek sebagai tanda goyangan diterima |
-| **Screenshot** | Bisa saat merekam atau tanpa merekam, tersimpan ke `Pictures/Zrec` |
+| **Screenshot** | Sekali tap, tanpa dialog izin bagikan layar di Android 11+. Bisa saat merekam atau tanpa merekam, tersimpan ke `Pictures/Zrec` |
 | **Audio** | Off, Mic, Internal, atau Mic + internal. Kalau sumbernya ditolak HP, rekaman lanjut tanpa suara |
 | **Auto split** | Rekaman dipecah otomatis tiap 5 menit di titik keyframe, jadi satu file bermasalah cuma menghilangkan satu potongan |
 | **Quick Settings tile** | Tile di panel pengaturan cepat: tap saat merekam untuk stop, tap saat idle untuk membuka aplikasi |
@@ -76,19 +76,19 @@ Setiap APK punya SHA-256 yang dicantumkan di halaman release. Cocokkan sebelum m
 
 ```powershell
 # Windows
-Get-FileHash Zrec-1.1.1.apk -Algorithm SHA256
+Get-FileHash Zrec-1.2.0.apk -Algorithm SHA256
 ```
 
 ```bash
 # Termux / Linux
-sha256sum Zrec-1.1.1.apk
+sha256sum Zrec-1.2.0.apk
 ```
 
 Rilis terakhir:
 
 | File | Ukuran | Build | SHA-256 |
 |---|---|---|---|
-| `Zrec-1.1.1.apk` | 105.541 byte | 13 | `9d9de9c045f51279a143e035dc538a63e659d85717e5e9648618c1ae78f36eb2` |
+| `Zrec-1.2.0.apk` | 112.053 byte | 14 | `2ebd8f6e9ff97624728a0cb2f119f85dc23cf62ade7d8ec954523c55454299e3` |
 
 File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
 
@@ -128,6 +128,7 @@ app/src/main/java/com/zrec/recorder/
 
 - Floating control tidak bisa terlihat di layar tapi hilang dari rekaman dengan sempurna. Bola dan target tutupnya sekarang ditandai `FLAG_SECURE`, jadi tidak ikut terekam, tapi di sebagian HP areanya bisa muncul sebagai kotak hitam kecil. Karena itu bola tetap disembunyikan selama merekam, dan kontrol pindah ke notifikasi.
 - Memanggil bola dengan volume bawah 2x hanya bekerja kalau volume benar-benar turun. Kalau media sudah di angka 0, tidak ada perubahan yang bisa dideteksi. Kontrol rekam tetap ada di notifikasi, dan bola muncul sendiri begitu rekaman selesai.
+- Screenshot tanpa dialog butuh **Zrec screenshots** aktif di Setelan > Aksesibilitas. Sekali aktif, berlaku seterusnya; layanan ini tidak membaca isi layar. Kalau tidak diaktifkan, tombol screenshot memakai dialog izin bagikan layar seperti biasa (Android 10 ke bawah memang selalu begitu).
 - Audio internal bisa kosong di aplikasi yang melarang perekaman suaranya. Ini keputusan aplikasi tersebut, bukan bug Zrec.
 - Ganti sumber audio saat merekam baru berlaku untuk rekaman berikutnya, karena jalur audio dibuka sekali di awal file.
 - Rekaman dipecah tiap 5 menit, jadi rekaman 20 menit menghasilkan empat file, bukan satu file besar.
