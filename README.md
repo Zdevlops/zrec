@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/Zdevlops/zrec/releases/latest">
-    <img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-v1.1.0-F4F1EC?style=for-the-badge&labelColor=121110">
+    <img alt="Download APK" src="https://img.shields.io/badge/Download%20APK-v1.1.1-F4F1EC?style=for-the-badge&labelColor=121110">
   </a>
 </p>
 
@@ -22,8 +22,8 @@ Satu file, tidak ada tambahan lain. Ambil di [Releases](../../releases/latest).
 | **Floating control** | Bola yang bisa digeser di luar aplikasi: record, stop, pause, screenshot, dan ganti sumber audio |
 | **Close by drag** | Geser bola ke target di tengah bawah untuk menutupnya, tanpa masuk ke aplikasi |
 | **Hide while recording** | Bola tampil 2,5 detik saat rekaman mulai, lalu hilang supaya video bersih |
-| **Summon by volume** | Tekan volume bawah dua kali untuk memunculkan bola lagi selama 5 detik |
-| **Shake to stop** | Goyang dua kali saat merekam |
+| **Summon by volume** | Tekan volume bawah dua kali untuk memunculkan bola lagi selama 5 detik. Kalau tombol volume sedang mengatur stream lain, tombol **Show control** di notifikasi tetap bisa dipakai |
+| **Shake to stop** | Goyang dua kali saat merekam, dengan getar pendek sebagai tanda goyangan diterima |
 | **Screenshot** | Bisa saat merekam atau tanpa merekam, tersimpan ke `Pictures/Zrec` |
 | **Audio** | Off, Mic, Internal, atau Mic + internal. Kalau sumbernya ditolak HP, rekaman lanjut tanpa suara |
 | **Auto split** | Rekaman dipecah otomatis tiap 5 menit di titik keyframe, jadi satu file bermasalah cuma menghilangkan satu potongan |
@@ -76,19 +76,19 @@ Setiap APK punya SHA-256 yang dicantumkan di halaman release. Cocokkan sebelum m
 
 ```powershell
 # Windows
-Get-FileHash Zrec-1.1.0.apk -Algorithm SHA256
+Get-FileHash Zrec-1.1.1.apk -Algorithm SHA256
 ```
 
 ```bash
 # Termux / Linux
-sha256sum Zrec-1.1.0.apk
+sha256sum Zrec-1.1.1.apk
 ```
 
 Rilis terakhir:
 
 | File | Ukuran | Build | SHA-256 |
 |---|---|---|---|
-| `Zrec-1.1.0.apk` | 104.781 byte | 12 | `464fbe24981202a7b40e89f3335d4f1877bb1ec7469c0028fb06784c31fbd99b` |
+| `Zrec-1.1.1.apk` | 105.541 byte | 13 | `9d9de9c045f51279a143e035dc538a63e659d85717e5e9648618c1ae78f36eb2` |
 
 File `.sha256` juga ikut diunggah di setiap release, isinya satu baris siap dipakai `sha256sum -c`.
 
