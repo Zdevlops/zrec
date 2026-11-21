@@ -66,6 +66,7 @@ class MainActivity : Activity() {
     private lateinit var dotUpdate: View
     private lateinit var recentBox: LinearLayout
     private lateinit var tvRecentEmpty: TextView
+    private lateinit var tvShotValue: TextView
 
     // Four tabs: one job per screen, so the record page is nothing but record.
     private lateinit var pages: List<View>
@@ -127,6 +128,7 @@ class MainActivity : Activity() {
         dotUpdate = findViewById(R.id.dotUpdate)
         recentBox = findViewById(R.id.recentBox)
         tvRecentEmpty = findViewById(R.id.tvRecentEmpty)
+        tvShotValue = findViewById(R.id.tvShotValue)
 
         bindTabs()
 
@@ -143,6 +145,7 @@ class MainActivity : Activity() {
 
         btnUpdate.setOnClickListener { installUpdate() }
         findViewById<View>(R.id.rowCheck).setOnClickListener { checkForUpdate(announce = true) }
+        findViewById<View>(R.id.rowShot).setOnClickListener { shotAccessDialog() }
         checkForUpdate(announce = false)
 
         val (dw, dh) = Caps.displaySize(this)
@@ -258,21 +261,34 @@ class MainActivity : Activity() {
         val density = resources.displayMetrics.density
         fun px(dp: Int) = (dp * density).toInt()
         for (r in rows) {
-            val row = TextView(this).apply {
-                text = r.name + "\n" + sizeText(r.size) + "  ·  " + dateText(r.at)
-                setTextColor(getColor(R.color.txtDim))
-                textSize = 12f
-                setLineSpacing(px(3).toFloat(), 1f)
-                setPadding(px(14), px(12), px(14), px(12))
+            val box = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(px(16), px(13), px(16), px(13))
                 setBackgroundResource(R.drawable.bg_row)
                 isClickable = true
+                isFocusable = true
             }
-            row.layoutParams = LinearLayout.LayoutParams(
+            val title = TextView(this).apply {
+                text = r.name
+                setTextColor(getColor(R.color.txt))
+                textSize = 13.5f
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.MIDDLE
+            }
+            val meta = TextView(this).apply {
+                text = sizeText(r.size) + "  ·  " + dateText(r.at)
+                setTextColor(getColor(R.color.txtFaint))
+                textSize = 11.5f
+                setPadding(0, px(3), 0, 0)
+            }
+            box.addView(title)
+            box.addView(meta)
+            box.layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = px(8) }
-            row.setOnClickListener { openVideo(r.uri) }
-            recentBox.addView(row)
+            box.setOnClickListener { openVideo(r.uri) }
+            recentBox.addView(box)
         }
     }
 
@@ -342,6 +358,7 @@ class MainActivity : Activity() {
         if (swOverlay.isChecked) startOverlay()
         refreshUi()
         buildRecent()
+        syncShotAccess()
     }
 
     override fun onPause() {
@@ -655,7 +672,7 @@ class MainActivity : Activity() {
         dot.visibility = View.GONE
         tvState.text = getString(R.string.state_ready)
         tvState.setTextColor(getColor(R.color.txtDim))
-        tvTime.setTextColor(getColor(R.color.txtFaint))
+        tvTime.setTextColor(getColor(R.color.txtDim))
         tvTime.text = "00:00"
         tvFps.visibility = View.GONE
         btnRecord.text = getString(R.string.btn_start)
@@ -693,6 +710,24 @@ class MainActivity : Activity() {
     }
 
     private fun beginShot() {
+        // Android 11+ can grab a frame through the accessibility service, which needs
+        // no consent dialog. Older versions have no such path, so they keep asking.
+        if (Build.VERSION.SDK_INT >= 30) {
+            if (ShotAccessibilityService.available(this)) {
+                val started = ShotAccessibilityService.grabNow { name, why ->
+                    runOnUiThread { shotDone(name, why) }
+                }
+                if (!started) Toast.makeText(this, R.string.shot_off, Toast.LENGTH_SHORT).show()
+                return
+            }
+            shotAccessDialog()
+            return
+        }
+        beginShotProjection()
+    }
+
+    /** The old path: ask for screen sharing, then capture one frame. */
+    private fun beginShotProjection() {
         val need = needPermissions()
         if (need.isNotEmpty()) {
             pending = { requestProjection() }
@@ -700,6 +735,50 @@ class MainActivity : Activity() {
             return
         }
         requestProjection()
+    }
+
+    private fun shotDone(name: String?, why: String?) {
+        Toast.makeText(
+            this,
+            if (name != null) "Screenshot saved" else "Screenshot failed: ${why ?: "unknown"}",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    /**
+     * Screenshots need one-time setup on Android 11+, and refusing it must not take
+     * the feature away: the third button keeps the old screen-sharing prompt for
+     * anyone who would rather not run an accessibility service.
+     */
+    private fun shotAccessDialog() {
+        if (Build.VERSION.SDK_INT < 30) {
+            AlertDialog.Builder(this, R.style.Theme_Zrec_Dialog)
+                .setTitle(R.string.shot_access)
+                .setMessage(R.string.shot_old_android)
+                .setPositiveButton(R.string.dialog_done, null)
+                .show()
+            return
+        }
+        AlertDialog.Builder(this, R.style.Theme_Zrec_Dialog)
+            .setTitle(R.string.shot_setup_title)
+            .setMessage(R.string.shot_setup_body)
+            .setPositiveButton(R.string.shot_open_settings) { _, _ -> openShotSettings() }
+            .setNeutralButton(R.string.shot_use_projection) { _, _ -> beginShotProjection() }
+            .setNegativeButton(R.string.shot_later, null)
+            .show()
+    }
+
+    private fun openShotSettings() {
+        val ok = runCatching {
+            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+        }.isSuccess
+        if (!ok) Toast.makeText(this, R.string.shot_setup_title, Toast.LENGTH_SHORT).show()
+    }
+
+    private fun syncShotAccess() {
+        tvShotValue.text = getString(
+            if (ShotAccessibilityService.available(this)) R.string.shot_on else R.string.shot_off
+        )
     }
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
